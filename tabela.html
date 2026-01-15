@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Frequência de Bolsistas</title>
+<style>
+body { font-family: Arial; padding: 20px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+th { background: #eee; }
+input, select { width: 100%; }
+button { padding: 6px 10px; margin: 2px; }
+.admin { background:#f5f5f5; padding:10px; margin-bottom:10px; }
+</style>
+</head>
+
+<body>
+
+<h2>Frequência de Bolsistas</h2>
+
+<div id="adminArea" class="admin" style="display:none">
+  <button onclick="adicionar()">Adicionar bolsista</button>
+  <br><br>
+  <b>Vincular bolsista</b><br>
+  Matrícula: <input id="vMat">
+  E-mail coordenador: <input id="vEmail">
+  <button onclick="vincular()">Vincular</button>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Matrícula</th>
+<th>Nome</th>
+<th>Setor</th>
+<th>Início</th>
+<th>Fim</th>
+<th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th>
+<th>Mai</th><th>Jun</th><th>Jul</th><th>Ago</th>
+<th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+<th>Justificativa</th>
+<th>Arquivo</th>
+<th>Ações</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbxZOYdKpvSBCt4sKsV0dMhI4D3yMokvvrR_htQbdK9GZo-5rvSFPJ-ryN7zkhwwx_DJxg/exec";
+const email = sessionStorage.getItem("coordenadorLogado") || "";
+const isAdmin = email === "bolsatrabalho@prex.uespi.br";
+
+if (isAdmin) document.getElementById("adminArea").style.display = "block";
+
+function sel(v="") {
+  return `<select>
+    <option value=""></option>
+    <option ${v==="SIM"?"selected":""}>SIM</option>
+    <option ${v==="NÃO"?"selected":""}>NÃO</option>
+  </select>`;
+}
+
+function carregar() {
+  fetch(`${API}?acao=listar&email=${email}`)
+    .then(r=>r.json())
+    .then(dados=>{
+      const validos = dados.filter(d=>d.Matricula);
+      montar(validos);
+    });
+}
+
+function montar(lista) {
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+
+  lista.forEach(b=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+<td><input value="${b.Matricula}" ${!isAdmin?"disabled":""}></td>
+<td><input value="${b["Nome do bolsista"]||""}" ${!isAdmin?"disabled":""}></td>
+<td><input value="${b.Setor||""}" ${!isAdmin?"disabled":""}></td>
+<td><input type="date" value="${b.Inicio||""}" ${!isAdmin?"disabled":""}></td>
+<td><input type="date" value="${b.Fim||""}" ${!isAdmin?"disabled":""}></td>
+${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map(m=>`<td>${sel(b[m])}</td>`).join("")}
+<td><input value="${b.Justificativa||""}" ${isAdmin?"disabled":""}></td>
+<td><input type="file" ${isAdmin?"disabled":""}></td>
+<td>
+${isAdmin
+? `<button onclick="salvar(this)">Salvar</button>
+   <button onclick="remover(this)">Remover</button>`
+: `<button onclick="enviar(this)">Enviar</button>`}
+</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function coletar(tr) {
+  const t = tr.querySelectorAll("td");
+  return {
+    matricula: t[0].querySelector("input").value,
+    nome: t[1].querySelector("input").value,
+    setor: t[2].querySelector("input").value,
+    inicio: t[3].querySelector("input").value,
+    fim: t[4].querySelector("input").value,
+    meses: [...tr.querySelectorAll("select")].map(s=>s.value),
+    justificativa: t[17].querySelector("input").value
+  };
+}
+
+function salvar(btn){
+  fetch(API,{method:"POST",body:JSON.stringify({acao:"adminSalvar",dados:coletar(btn.closest("tr"))})})
+  .then(()=>alert("Salvo"));
+}
+
+function enviar(btn){
+  fetch(API,{method:"POST",body:JSON.stringify({acao:"salvar",dados:coletar(btn.closest("tr"))})})
+  .then(()=>alert("Enviado"));
+}
+
+function remover(btn){
+  const m = btn.closest("tr").querySelector("input").value;
+  if(confirm("Remover?"))
+    fetch(API,{method:"POST",body:JSON.stringify({acao:"remover",matricula:m})})
+    .then(()=>carregar());
+}
+
+function adicionar(){ montar([{Matricula:""}]); }
+
+function vincular(){
+  fetch(API,{method:"POST",body:JSON.stringify({
+    acao:"vincular",
+    matricula:document.getElementById("vMat").value,
+    email:document.getElementById("vEmail").value
+  })}).then(()=>alert("Vinculado"));
+}
+
+carregar();
+</script>
+</body>
+</html>
